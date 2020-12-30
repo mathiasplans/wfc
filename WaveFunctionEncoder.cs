@@ -121,19 +121,38 @@ public class WaveFunctionEncoder {
     }
 
     /**
-     * Get the full possibility space with some waves absent
+     * Sets a specific bit and resets everything else
      */
-    public uint[] GetPossibilitySpace(Wave[] exclude) {
+    private void SelectWave(uint[] waveFunction, int order) {
+        for (uint i = 0; i < this.encodeSize; ++i) {
+            waveFunction[i] = 0;
+        }
+
+        this.SetWave(waveFunction, order);
+    }
+
+    /**
+     * Set only one specified wave. Every other wave will be removed.
+     */
+    public void SelectWave(uint[] waveFunction, Wave wave) {
+        int order = this.waveOrder[wave];
+        this.SelectWave(waveFunction, order);
+    }
+
+    /**
+     * Get the possibility space with some waves
+     */
+    public uint[] GetPossibilitySpace(Wave[] include) {
         // Get a fresh copy
-        uint[] r = this.GetPossibilitySpace();
+        uint[] r = new uint[this.encodeSize];
 
         // Now exclude the waves
-        foreach (Wave wave in exclude) {
+        foreach (Wave wave in include) {
             // Get the order
             int order = this.waveOrder[wave];
 
             // Clear the bit
-            this.ResetWave(r, order);
+            this.SetWave(r, order);
         }
 
         return r;
@@ -213,10 +232,7 @@ public class WaveFunctionEncoder {
         return entropy - 1;
     }
 
-    /**
-     * Iteration function. Apply the action for each wave in the waveFunction
-     */
-    private void ForEachWave(uint[] waveFunction, Action<int> action) {
+    private void ForEachWave(uint[] waveFunction, Func<int, bool> action) {
         uint order = 0U;
 
         // Iterate slotwise
@@ -231,7 +247,8 @@ public class WaveFunctionEncoder {
                 // If current bit is 1, call the function
                 if ((slot & 1U) == 1U) {
                     // Call the callback
-                    action((int) (order + i));
+                    if (action((int)(order + i)))
+                        break;
                 }
 
                 // Shift the slot
@@ -241,6 +258,16 @@ public class WaveFunctionEncoder {
             // Increment order
             order += 8U;
         }
+    }
+
+    /**
+     * Iteration function. Apply the action for each wave in the waveFunction
+     */
+    private void ForEachWave(uint[] waveFunction, Action<int> action) {
+        this.ForEachWave(waveFunction, (order) => {
+            action(order);
+            return false;
+        });
     }
 
     /**
@@ -288,5 +315,46 @@ public class WaveFunctionEncoder {
 
         // Get the new entropy
         return this.GetEntropy(collapsable);
+    }
+
+    private uint random(uint seed) {
+        return seed ^ (seed >> 5) ^ (seed << 15) ^ (seed >> 20) ^ (seed << 7) ^ 0xDEADBEEF;
+    }
+
+    private uint randomSeed = 0xABCDEFAB;
+
+    private uint next() {
+        this.randomSeed = random(this.randomSeed);
+        return this.randomSeed;
+    }
+
+    /**
+     * Get random bool. TODO: this is 50/50. Has to be so
+     */
+    private uint next(uint max) {
+        return next() % max;
+    }
+
+    /**
+     * Collapse a single wave function to a single wave
+     * For now, we just take a random wave
+     */
+    public void Collapse(uint[] collapsable, uint entropy) {
+        // Get a random number in [0, entropy)
+        uint rank = this.next(entropy);
+        uint i = 0;
+
+        // Variable where the order of the selected wave will be store
+        int rankOrder = 0;
+
+        // Iterate rank times.
+        this.ForEachWave(collapsable, (order) => {
+            ++i;
+            rankOrder = order;
+            return i == rank;
+        });
+
+        // Set the bit at rankOrder and reset all the other bits
+        this.SelectWave(collapsable, rankOrder);
     }
 }

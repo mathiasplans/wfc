@@ -7,6 +7,6 @@ public class WFCPopCount {
         // return Unity.Burst.Intrinsics.X86.Popcnt.popcnt_u32(word);
 
         // For .NET 3.0+
-        return PopCount(word);
+        return BitOperations.PopCount(word);
     }
 }

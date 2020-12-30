@@ -6,3 +6,5 @@
 *.sln
 *.config
 obj
+bin
+mono_crash*
