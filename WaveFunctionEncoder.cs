@@ -7,21 +7,19 @@ public class WaveFunctionEncoder {
     private uint[] encoded;
     private uint[,][] constraints;
     private int encodeSize;
-    private uint spareMask = 0x00000000;
 
     private Dictionary<Wave, int> waveOrder;
     private Dictionary<int, Wave> orderWave;
 
-    /**
-     *
-     */
-    public WaveFunctionEncoder(Wave[] waves, uint adjacencies) {
+    private void Initialize(Wave[] waves, uint adjacencies) {
         this.size = waves.Length;
 
+        // How many words have to be used
+        uint spareMask = 0;
         this.encodeSize = this.size / 8;
-        if (this.size % 32U != 0U) {
+        if (this.size % 32 != 0) {
             this.encodeSize += 1;
-            this.spareMask = ~(~0U << (this.size % 32));
+            spareMask = ~(~0U << (this.size % 32));
         }
 
         // Mapping between the wave order and wave
@@ -42,7 +40,7 @@ public class WaveFunctionEncoder {
         }
 
         // Last word
-        this.encoded[this.encodeSize - 1] ^= this.spareMask;
+        this.encoded[this.encodeSize - 1] ^= spareMask;
 
         // Now create the rules (constraints guide)
         this.constraints = new uint[adjacencies, this.encodeSize][];
@@ -63,6 +61,24 @@ public class WaveFunctionEncoder {
                 }
             }
         }
+    }
+
+    /**
+     * Constructor for naive wave function collapse. The context of adjacency (e.g direction)
+     * does not matter. This is useful when running the wave function collapse algorithm on a
+     * graph.
+     */
+    public WaveFunctionEncoder(Wave[] waves) {
+        this.Initialize(waves, 1);
+    }
+
+    /**
+     * Constructor for wave function collapse with contextual adjacency. The adjacency context matters -
+     * rules in south and north are different, for example. This is useful when running the wave function
+     * collapse algorithm on a grid.
+     */
+    public WaveFunctionEncoder(Wave[] waves, uint adjacencies) {
+        this.Initialize(waves, adjacencies);
     }
 
     /**
