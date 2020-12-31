@@ -77,9 +77,17 @@ public class WFC2 {
         }
     }
 
-    struct Tile {
+    public Wave GetWave(uint x, uint y) {
+        return this.core.GetWaves(this.grid[x, y])[0];
+    }
+
+    struct Tile : IComparable {
         public uint x;
         public uint y;
+
+        public int CompareTo(Object other) {
+            return 0;
+        }
 
         public Tile(uint x, uint y) {
             this.x = x;
@@ -122,15 +130,16 @@ public class WFC2 {
         });
 
         // Split the tiles into entropy classes
-        SortedSet<Tile>[] entropyClasses = new SortedSet<Tile>[this.waves.Count];
-        for (uint i = 0; i < this.waves.Count; ++i) {
-            entropyClasses[i] = new SortedSet<Tile>();
-        }
+        // SortedSet<Tile>[] entropyClasses = new SortedSet<Tile>[this.waves.Count];
+        // for (uint i = 0; i < this.waves.Count; ++i) {
+        //     entropyClasses[i] = new SortedSet<Tile>();
+        // }
+        ClassSet<uint, Tile> entropyClasses = new ClassSet<uint, Tile>();
 
         // Fill the classes
         this.ForEachTile((x, y) => {
             uint entropy  = this.entropy[x, y];
-            entropyClasses[entropy].Add(new Tile(x, y));
+            entropyClasses.Add(entropy, new Tile(x, y));
         });
 
         Tile lowestEntropyTile = new Tile(0, 0);
@@ -144,9 +153,9 @@ public class WFC2 {
             // the loop. If it is not, then there is a severe bug
             // somewhere in this loop.
             for (uint i = 1; i < this.waves.Count; ++i) {
-                if (entropyClasses[i].Count > 0) {
+                if (entropyClasses.ClassSize(i) > 0) {
                     // Take an arbitrary element from the sent
-                    lowestEntropyTile = entropyClasses[i].Min;
+                    lowestEntropyTile = entropyClasses.RandomFromClass(i);
                     lowestEntropy = i;
                 }
             }
@@ -159,8 +168,8 @@ public class WFC2 {
             this.core.Collapse(this.grid[x, y], this.entropy[x, y]);
 
             // Change the entropy class
-            entropyClasses[lowestEntropy].Remove(lowestEntropyTile);
-            entropyClasses[0].Add(lowestEntropyTile); // TODO: do we need to do that?
+            entropyClasses.ChangeClass(lowestEntropy, 0, lowestEntropyTile);
+            done += 1;
             this.entropy[x, y] = 0;
 
             // Now we need to propagate the change
@@ -189,6 +198,14 @@ public class WFC2 {
             while (propagation.Count > 0) {
                 // Get the propagator
                 pt = propagation.Pop();
+                // !!!!!!!
+                //
+                // TODO: Don't use stack. Use the ordered set stuff instead!.
+                //       This is because the propagation also has to be in order
+                //       of the lowest entropy. Otherwise, negative entropy
+                //       is very likely.
+                //
+                // !!!!!!!
                 propagator = this.grid[pt.x, pt.y];
 
                 validDirection[WFC2.NORTH] = false;
@@ -197,25 +214,25 @@ public class WFC2 {
                 validDirection[WFC2.WEST] = false;
 
                 // Propagate to north
-                if (y > 0) {
+                if (pt.y > 0) {
                     propagationDirections[WFC2.NORTH].Set(pt.x, pt.y - 1);
                     validDirection[WFC2.NORTH] = true;
                 }
 
                 // Propagate to east
-                if (x < this.dimx) {
+                if (pt.x < this.dimx - 1) {
                     propagationDirections[WFC2.EAST].Set(pt.x + 1, pt.y);
                     validDirection[WFC2.EAST] = true;
                 }
 
                 // Propagate to south
-                if (y < this.dimy) {
+                if (pt.y < this.dimy - 1) {
                     propagationDirections[WFC2.SOUTH].Set(pt.x, pt.y + 1);
                     validDirection[WFC2.SOUTH] = true;
                 }
 
                 // Propagate to west
-                if (x > 0) {
+                if (pt.x > 0) {
                     propagationDirections[WFC2.WEST].Set(pt.x - 1, pt.y);
                     validDirection[WFC2.WEST] = true;
                 }
@@ -229,18 +246,24 @@ public class WFC2 {
                     Tile dt = propagationDirections[i];
 
                     // Get the propagee
+                    // Console.WriteLine(dt.x);
+                    // Console.WriteLine(dt.y);
                     propagee = this.grid[dt.x, dt.y];
 
                     // Old and new entropy (after propagating the state)
                     propageeEntropy = this.entropy[dt.x, dt.y];
+                    Console.WriteLine(dt.x + " " + dt.y);
                     newEntropy = this.core.Collapse(propagator, propagee, i);
 
                     // The wave function has changed
                     // TODO: Make so that the tile with the lowest entropy is pushed last
                     if (propageeEntropy != newEntropy) {
                         // Change the entropy class
-                        entropyClasses[propageeEntropy].Remove(dt);
-                        entropyClasses[newEntropy].Add(dt);
+                        entropyClasses.ChangeClass(propageeEntropy, newEntropy, dt);
+
+                        // Update done
+                        if (newEntropy == 0)
+                            done += 1;
 
                         // Update the entropy
                         this.entropy[dt.x, dt.y] = newEntropy;

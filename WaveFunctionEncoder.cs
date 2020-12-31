@@ -16,10 +16,10 @@ public class WaveFunctionEncoder {
 
         // How many words have to be used
         uint spareMask = 0;
-        this.encodeSize = this.size / 8;
+        this.encodeSize = this.size / 32;
         if (this.size % 32 != 0) {
             this.encodeSize += 1;
-            spareMask = ~(~0U << (this.size % 32));
+            spareMask = ~0U << (this.size % 32);
         }
 
         // Mapping between the wave order and wave
@@ -43,7 +43,7 @@ public class WaveFunctionEncoder {
         this.encoded[this.encodeSize - 1] ^= spareMask;
 
         // Now create the rules (constraints guide)
-        this.constraints = new uint[adjacencies, this.encodeSize][];
+        this.constraints = new uint[adjacencies, this.size][];
 
         for (uint i = 0; i < this.size; ++i) {
             Wave subject = waves[i];
@@ -307,10 +307,12 @@ public class WaveFunctionEncoder {
      * collapsable is the wavefunction that changes due to changes from the observer
      */
     public uint Collapse(uint[] observer, uint[] collapsable, uint adjacency) {
+        Console.WriteLine("b" + Convert.ToString(observer[0], 2));
+        Console.WriteLine("b" + Convert.ToString(collapsable[0], 2));
         // For each wave in the observer
         this.ForEachWave(observer, (order) => {
             // And the constraint with collapsable
-            this.AndInPlace(collapsable, constraints[adjacency, order]);
+            this.AndInPlace(collapsable, this.constraints[adjacency, order]);
         });
 
         // Get the new entropy
@@ -321,7 +323,7 @@ public class WaveFunctionEncoder {
         return seed ^ (seed >> 5) ^ (seed << 15) ^ (seed >> 20) ^ (seed << 7) ^ 0xDEADBEEF;
     }
 
-    private uint randomSeed = 0xABCDEFAB;
+    private uint randomSeed = 0xFFFF;
 
     private uint next() {
         this.randomSeed = random(this.randomSeed);
@@ -340,6 +342,9 @@ public class WaveFunctionEncoder {
      * For now, we just take a random wave
      */
     public void Collapse(uint[] collapsable, uint entropy) {
+        if (entropy == 0)
+            return;
+
         // Get a random number in [0, entropy)
         uint rank = this.next(entropy);
         uint i = 0;
