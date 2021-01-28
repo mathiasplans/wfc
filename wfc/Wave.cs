@@ -16,16 +16,23 @@ public class Wave {
         this.constraints[side] = waves;
     }
 
+    public void AddConstraints(Wave[] waves) {
+        this.constraints[0] = waves;
+    }
+
     public Wave[] GetConstraints(uint i) {
         return this.constraints[i];
     }
 
+    public uint GetSides() {
+        return (uint) this.constraints.Length;
+    }
+
     public Wave ShiftedWave() {
         Wave newWave = new Wave(this.adjacencies, this.name);
-        newWave.AddConstraints(0, this.constraints[3]);
-        newWave.AddConstraints(1, this.constraints[0]);
-        newWave.AddConstraints(2, this.constraints[1]);
-        newWave.AddConstraints(3, this.constraints[2]);
+        for (uint i = 0; i < this.GetSides(); ++i) {
+            newWave.AddConstraints((i + 1) % this.GetSides(), this.constraints[i]);
+        }
 
         return newWave;
     }
