@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System;
 
 public class WaveFunctionEncoder {
+    public readonly Wave[] waves;
     private int size;
     private uint[] encoded;
     private int encodeSize;
@@ -48,6 +49,7 @@ public class WaveFunctionEncoder {
      * graph.
      */
     public WaveFunctionEncoder(Wave[] waves) {
+        this.waves = waves;
         this.Initialize(waves);
     }
 
@@ -211,8 +213,15 @@ public class WaveFunctionEncoder {
      * on waveFunction in-place.
      */
     public void AndInPlace(uint[] waveFunction, uint[] ander) {
+        // TODO: Add asserts
         for (uint i = 0; i < waveFunction.Length; ++i) {
             waveFunction[i] &= ander[i];
+        }
+    }
+
+    public void OrInPlace(uint[] waveFunction, uint[] orer) {
+        for (uint i = 0; i < waveFunction.Length; ++i) {
+            waveFunction[i] |= orer[i];
         }
     }
 
@@ -276,14 +285,21 @@ public class WaveFunctionEncoder {
         // Create the list for waves
         List<Wave> wavesInFunction = new List<Wave>();
 
-        Console.WriteLine("A: " + waveFunction[0]);
         // For each wave in wave function
         this.ForEachWave(waveFunction, (order) => {
-            Console.WriteLine("B: " + order);
             wavesInFunction.Add(this.orderWave[order]);
         });
 
         // Convert to array
         return wavesInFunction.ToArray();
+    }
+
+    public string FormatWave(uint[] waveFunction) {
+        string o = "";
+        foreach (uint segment in waveFunction) {
+            o += Convert.ToString(segment, 2);
+        }
+
+        return o.PadLeft(this.size, '0');
     }
 }

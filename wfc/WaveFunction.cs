@@ -1,5 +1,6 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using System;
 
 public class WaveFunction {
     private uint[,][] constraints;
@@ -39,6 +40,61 @@ public class WaveFunction {
         this.Initialize(waves, adjacencies);
     }
 
+    /**
+     * Checks among the waves added to this object if they
+     * are comparable with each other. For example, if tile A can be next
+     * to B, but B can't be next to A, then the check fails. In other
+     * words, the method checks whether the relation between tiles
+     * is symmetrical.
+     * 
+     * If the check fails, the offending tiles are listed in the returned
+     * array. On no conflict null is returned.
+     */
+    public Wave[] GetSymmetryFaults() {
+        // Iterate through all the pairs of wave functions
+        for (uint i = 0; i < this.wencoder.waves.Length - 1; ++i) {
+            // Get the i-th wavefunction
+            uint[] a = this.wencoder.GetSolo(this.wencoder.waves[i]);
+
+            for (uint j = i + 1; j < this.wencoder.waves.Length; ++j) {
+                // Get the j-th wavefunction
+                uint[] b = this.wencoder.GetSolo(this.wencoder.waves[j]);
+
+                // Iterate all the adjacencies
+                // TODO: use adjacencies
+                for (uint k = 0; k < 4; ++k) {
+                    // Also get the opposite side
+                    uint l = (k + 2) % 4;
+
+                    // Get the i-th constraint
+                    uint[] acons = this.constraints[k, i];
+
+                    // Get the j-th constraint
+                    uint[] bcons = this.constraints[l, j];
+
+                    // If there is a conflict, return it
+                    bool aok = false, bok = false;
+                    for (uint m = 0; m < this.wencoder.GetEncodeSize(); ++m) {
+                        aok |= (a[m] & bcons[m]) != 0U;
+                        bok |= (b[m] & acons[m]) != 0U;
+                    }
+
+                    // We fail if not symmetrical aka different
+                    if (aok ^ bok) {
+                        // Console.WriteLine("Failed:");
+                        // Console.WriteLine($"    A: {this.wencoder.FormatWave(a)}");
+                        // Console.WriteLine($"BCONS: {this.wencoder.FormatWave(bcons)}");
+                        // Console.WriteLine($"    B: {this.wencoder.FormatWave(b)}");
+                        // Console.WriteLine($"ACONS: {this.wencoder.FormatWave(acons)}");
+                        return new Wave[] {this.wencoder.waves[i], this.wencoder.waves[j]};
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
      /**
      * Collapse the possibility space a bit.
      * Returns a new entropy of the collapsable
@@ -62,11 +118,24 @@ public class WaveFunction {
     public uint Collapse(uint[] observer, uint[] collapsable, uint adjacency) {
         // Console.WriteLine("b" + Convert.ToString(observer[0], 2));
         // Console.WriteLine("b" + Convert.ToString(collapsable[0], 2));
+
+        uint[] mask = this.wencoder.GetEmpty();
         // For each wave in the observer
         this.wencoder.ForEachWave(observer, (order) => {
-            // And the constraint with collapsable
-            this.wencoder.AndInPlace(collapsable, this.constraints[adjacency, order]);
+            // Or all the constraints together
+            this.wencoder.OrInPlace(mask, this.constraints[adjacency, order]);
         });
+
+        // Console.WriteLine("Collapse:");
+        // Console.WriteLine(this.wencoder.FormatWave(mask));
+        // Console.WriteLine("&");
+        // Console.WriteLine(this.wencoder.FormatWave(collapsable));
+
+        // Now and the collapsable with all the constraints
+        this.wencoder.AndInPlace(collapsable, mask);
+
+        // Console.WriteLine("=");
+        // Console.WriteLine(this.wencoder.FormatWave(collapsable));
 
         // Get the new entropy
         return this.wencoder.GetEntropy(collapsable);

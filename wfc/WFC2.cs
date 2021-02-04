@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using System;
+using System.Diagnostics;
 
 public class WFC2 {
     private uint dimx, dimy;
@@ -32,11 +33,21 @@ public class WFC2 {
     }
 
     /**
+     * Add multiple waves at once
+     */
+    public void AddWaves(Wave[] waves) {
+        this.waves.AddRange(waves);
+    }
+
+    /**
      * Encode the wave function
      */
     public void Encode() {
         // 2D grid has 4 directions: North, South, East, West
         this.core = new WaveFunction(this.waves.ToArray(), 4);
+        Wave[] cw = this.core.GetSymmetryFaults();
+        if (cw != null)
+            throw new Exception($"Given waves' adjacency rules are not symmetrical: {cw[0].name} and {cw[1].name}");
     }
 
     /**
@@ -71,15 +82,32 @@ public class WFC2 {
                 if (this.grid[x, y] == null) {
                     waveFunction = this.core.wencoder.GetPossibilitySpace();
                     this.grid[x, y] = waveFunction;
-                    this.entropy[x, y] = this.core.wencoder.GetEntropy(waveFunction);
+                    this.entropy[x, y] = this.core.wencoder.GetEntropy(this.grid[x, y]);
                 }
+
+                // else {
+                //     Console.WriteLine($"There is a constraint on the grid: ({x}, {y}) @{this.entropy[x, y]}");
+                // }
             }
         }
     }
 
-    public Wave GetWave(uint x, uint y) {
+    public Wave[] GetWaves(uint x, uint y) {
         uint[] place = this.grid[x, y];
-        return this.core.wencoder.GetWaves(place)[0];
+
+        if (place == null)
+            throw new Exception("The grid has not been initialized. Add a constraint or use the FillGrid function.");
+
+        return this.core.wencoder.GetWaves(place);
+    }
+
+    public Wave GetWave(uint x, uint y) {
+        Wave[] waves = this.GetWaves(x, y);
+
+        if (!(waves.Length > 0))
+            throw new Exception("This place has negative entropy: " + x + ", " + y);
+
+        return waves[0];
     }
 
     struct Tile : IComparable {
@@ -87,7 +115,7 @@ public class WFC2 {
         public uint y;
 
         public int CompareTo(Object other) {
-            return 0;
+            return this.GetHashCode() - other.GetHashCode();
         }
 
         public Tile(uint x, uint y) {
@@ -106,8 +134,10 @@ public class WFC2 {
         }
 
         public override int GetHashCode() {
-            int yh = this.y.GetHashCode();
-            return this.x.GetHashCode() ^ (yh << 1 | yh >> 31);
+            int hashCode = 0;
+            hashCode = (hashCode * 397) ^ this.x.GetHashCode();
+            hashCode = (hashCode * 397) ^ this.y.GetHashCode();
+            return hashCode;
         }
     }
 
@@ -152,7 +182,6 @@ public class WFC2 {
         // TODO: This loop is probably the most expensive piece
         // of code in this project. Optimize! (make less brancy)
         while (propagation.Count > 0) {
-            // Console.WriteLine("C: " + propagation.Count);
 
             // Get the propagator
             uint propagatorClass = propagation.GetMinClass();
@@ -204,7 +233,10 @@ public class WFC2 {
                 // Old and new entropy (after propagating the state)
                 propageeEntropy = this.entropy[dt.x, dt.y];
                 newEntropy = this.core.Collapse(propagator, propagee, i);
-
+#if(DEBUG)
+                if (newEntropy > ~0U - 100)
+                    throw new Exception($"New entropy is negative ({newEntropy}, was {propageeEntropy}): ({pt.x}, {pt.y}) propagated to ({dt.x}, {dt.y}), propagator {Convert.ToString(propagator[0], 2)}");
+#endif
                 // The wave function has changed
                 if (propageeEntropy != newEntropy) {
                     // Change the entropy class
@@ -220,8 +252,6 @@ public class WFC2 {
                     // This will also propagate
                     Tile nt = new Tile(dt.x, dt.y);
                     propagation.Add(newEntropy, nt);
-                    // Console.WriteLine("NewPropagation: " + newEntropy);
-                    // Console.WriteLine("Remove");
                     propagation.Remove(propageeEntropy, nt);
                 }
             }
@@ -253,11 +283,20 @@ public class WFC2 {
         // }
         ClassSet<Tile> entropyClasses = new ClassSet<Tile>();
 
+        // Console.WriteLine("Start writing");
         // Fill the classes
         this.ForEachTile((x, y) => {
-            uint entropy  = this.entropy[x, y];
+            uint entropy = this.entropy[x, y];
             entropyClasses.Add(entropy, new Tile(x, y));
+            // Console.WriteLine($"Writing {x} {y} @{entropy}");
+            // Console.WriteLine($"Size is {entropyClasses.ClassSize(entropy)}");
         });
+
+        if (this.dimx * this.dimy != entropyClasses.Count)
+            throw new Exception($"Some tiles are missing from the entropy classes: expected {this.dimx * this.dimy}, is {entropyClasses.Count}");
+        // Console.WriteLine($"{this.dimx} {this.dimy}");
+        // Console.WriteLine("Class set status: ");
+        // entropyClasses.PrintCounts();
 
         Tile lowestEntropyTile = new Tile(0, 0);
         uint lowestEntropy = 0;
@@ -269,13 +308,17 @@ public class WFC2 {
             // The value of lowestEntropyTile should be non-default after
             // the loop. If it is not, then there is a severe bug
             // somewhere in this loop.
-            for (uint i = 1; i < this.waves.Count; ++i) {
+            for (uint i = 0; i < this.waves.Count; ++i) {
                 if (entropyClasses.ClassSize(i) > 0) {
                     // Take an arbitrary element from the sent
                     lowestEntropyTile = entropyClasses.RandomFromClass(i);
                     lowestEntropy = i;
+
+                    break;
                 }
             }
+
+            // Console.WriteLine($"{lowestEntropyTile.x} {lowestEntropyTile.y} @{lowestEntropy}");
 
             // If the tile has not been propagated yet
             uint did = this.Propagate(lowestEntropyTile, entropyClasses);

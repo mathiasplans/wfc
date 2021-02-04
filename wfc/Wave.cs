@@ -16,8 +16,10 @@ public class Wave {
         this.constraints[side] = waves;
     }
 
-    public void AddConstraints(Wave[] waves) {
-        this.constraints[0] = waves;
+    public void AddConstraints(params Wave[][] constraints) {
+        for (uint i = 0; i < constraints.Length; ++i) {
+            this.constraints[i] = constraints[i];
+        }
     }
 
     public Wave[] GetConstraints(uint i) {

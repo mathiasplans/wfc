@@ -64,8 +64,8 @@ public class ClassSet<T> where T : IComparable {
     }
 
     public void PrintCounts() {
+        Console.WriteLine("Counts: ");
         foreach (uint key in this.setMap.Keys) {
-            Console.WriteLine("Counts: ");
             Console.WriteLine(key + ": " + this.setMap[key].Count);
         }
     }
