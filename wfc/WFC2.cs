@@ -4,6 +4,11 @@ using System;
 using System.Diagnostics;
 
 public class WFC2 {
+    public static readonly uint NORTH = 0;
+    public static readonly uint EAST = 1;
+    public static readonly uint SOUTH = 2;
+    public static readonly uint WEST = 3;
+
     private uint dimx, dimy;
     private uint[,][] grid;
     private uint[,] entropy;
@@ -110,17 +115,20 @@ public class WFC2 {
         return waves[0];
     }
 
+    /**
+     * This is a class that is stored in the ClassSet object.
+     * The ClassSet object requires that the stored object
+     * is IComparable.
+     */
     struct Tile : IComparable {
         public uint x;
         public uint y;
-
-        public int CompareTo(Object other) {
-            return this.GetHashCode() - other.GetHashCode();
-        }
+        public bool valid;
 
         public Tile(uint x, uint y) {
             this.x = x;
             this.y = y;
+            this.valid = false;
         }
 
         public void Set(uint x, uint y) {
@@ -128,9 +136,17 @@ public class WFC2 {
             this.y = y;
         }
 
+        public void Set(uint x, uint y, bool valid) {
+            this.valid = valid;
+            this.Set(x, y);
+        }
+
         public override bool Equals(object obj) {
-            Tile o = (Tile) obj;
-            return o.x == this.x && o.y == this.y;
+            return this.GetHashCode() == obj.GetHashCode();
+        }
+
+        public int CompareTo(Object other) {
+            return this.GetHashCode() - other.GetHashCode();
         }
 
         public override int GetHashCode() {
@@ -148,11 +164,6 @@ public class WFC2 {
             }
         }
     }
-
-    public static readonly uint NORTH = 0;
-    public static readonly uint EAST = 1;
-    public static readonly uint SOUTH = 2;
-    public static readonly uint WEST = 3;
 
     private uint Propagate(Tile lowestEntropyTile, ClassSet<Tile> entropyClasses) {
         ClassSet<Tile> propagation = new ClassSet<Tile>();
@@ -173,71 +184,51 @@ public class WFC2 {
 
         // Propagation directions and can we go in this direction
         Tile[] propagationDirections = new Tile[4];
-        bool[] validDirection = new bool[4];
 
         // Run until the state has been completly propagated.
         // In other words, propagate until there is nothing more
         // to propagate. AKA until propagation stack has no more
         // elements.
-        // TODO: This loop is probably the most expensive piece
-        // of code in this project. Optimize! (make less brancy)
         while (propagation.Count > 0) {
-
-            // Get the propagator
+            // Get the propagator. Note that it has the lowest entropy
             uint propagatorClass = propagation.GetMinClass();
             pt = propagation.RandomFromClass(propagatorClass);
             propagation.Remove(propagatorClass, pt);
 
+            // Get the propagator wave function
             propagator = this.grid[pt.x, pt.y];
 
-            validDirection[WFC2.NORTH] = false;
-            validDirection[WFC2.EAST] = false;
-            validDirection[WFC2.SOUTH] = false;
-            validDirection[WFC2.WEST] = false;
-
-            // Propagate to north
-            if (pt.y > 0) {
-                propagationDirections[WFC2.NORTH].Set(pt.x, pt.y - 1);
-                validDirection[WFC2.NORTH] = true;
-            }
-
-            // Propagate to east
-            if (pt.x < this.dimx - 1) {
-                propagationDirections[WFC2.EAST].Set(pt.x + 1, pt.y);
-                validDirection[WFC2.EAST] = true;
-            }
-
-            // Propagate to south
-            if (pt.y < this.dimy - 1) {
-                propagationDirections[WFC2.SOUTH].Set(pt.x, pt.y + 1);
-                validDirection[WFC2.SOUTH] = true;
-            }
-
-            // Propagate to west
-            if (pt.x > 0) {
-                propagationDirections[WFC2.WEST].Set(pt.x - 1, pt.y);
-                validDirection[WFC2.WEST] = true;
-            }
+            // Propagation info
+            propagationDirections[WFC2.NORTH].Set(pt.x, pt.y - 1, pt.y > 0);
+            propagationDirections[WFC2.EAST].Set(pt.x + 1, pt.y, pt.x < this.dimx - 1);
+            propagationDirections[WFC2.SOUTH].Set(pt.x, pt.y + 1, pt.y < this.dimy - 1);
+            propagationDirections[WFC2.WEST].Set(pt.x - 1, pt.y, pt.x > 0);
 
             // Propagate in each direction
             for (uint i = 0; i < 4; ++i) {
-                if (!validDirection[i])
-                    continue;
-
                 // The tile where we are going to propagate now
                 Tile dt = propagationDirections[i];
 
-                // Get the propagee
+                // If we can't propagate in this direction
+                if (!dt.valid)
+                    continue;
+
+                // Get the propagee wavefunction
                 propagee = this.grid[dt.x, dt.y];
 
                 // Old and new entropy (after propagating the state)
                 propageeEntropy = this.entropy[dt.x, dt.y];
                 newEntropy = this.core.Collapse(propagator, propagee, i);
+
 #if(DEBUG)
+                // Throw an exception if the new entropy is negative
+                // This usually indicates that the logic is faulty, not
+                // that the programmer made some mistake.
                 if (newEntropy > ~0U - 100)
                     throw new Exception($"New entropy is negative ({newEntropy}, was {propageeEntropy}): ({pt.x}, {pt.y}) propagated to ({dt.x}, {dt.y}), propagator {Convert.ToString(propagator[0], 2)}");
 #endif
-                // The wave function has changed
+
+                // The wavefunction changed due to propagation
                 if (propageeEntropy != newEntropy) {
                     // Change the entropy class
                     entropyClasses.ChangeClass(propageeEntropy, newEntropy, dt);
@@ -252,7 +243,6 @@ public class WFC2 {
                     // This will also propagate
                     Tile nt = new Tile(dt.x, dt.y);
                     propagation.Add(newEntropy, nt);
-                    propagation.Remove(propageeEntropy, nt);
                 }
             }
         }
@@ -265,8 +255,8 @@ public class WFC2 {
      */
     public void Collapse() {
         uint done = 0;
-        bool[,] finished = new bool[this.dimx, this.dimy];
         uint need = this.dimx * this.dimy;
+        bool[,] finished = new bool[this.dimx, this.dimy];
 
         // Initialize the finished array
         this.ForEachTile((x, y) => {
@@ -276,27 +266,16 @@ public class WFC2 {
             }
         });
 
-        // Split the tiles into entropy classes
-        // SortedSet<Tile>[] entropyClasses = new SortedSet<Tile>[this.waves.Count];
-        // for (uint i = 0; i < this.waves.Count; ++i) {
-        //     entropyClasses[i] = new SortedSet<Tile>();
-        // }
         ClassSet<Tile> entropyClasses = new ClassSet<Tile>();
 
-        // Console.WriteLine("Start writing");
         // Fill the classes
         this.ForEachTile((x, y) => {
             uint entropy = this.entropy[x, y];
             entropyClasses.Add(entropy, new Tile(x, y));
-            // Console.WriteLine($"Writing {x} {y} @{entropy}");
-            // Console.WriteLine($"Size is {entropyClasses.ClassSize(entropy)}");
         });
 
         if (this.dimx * this.dimy != entropyClasses.Count)
             throw new Exception($"Some tiles are missing from the entropy classes: expected {this.dimx * this.dimy}, is {entropyClasses.Count}");
-        // Console.WriteLine($"{this.dimx} {this.dimy}");
-        // Console.WriteLine("Class set status: ");
-        // entropyClasses.PrintCounts();
 
         Tile lowestEntropyTile = new Tile(0, 0);
         uint lowestEntropy = 0;
@@ -310,15 +289,13 @@ public class WFC2 {
             // somewhere in this loop.
             for (uint i = 0; i < this.waves.Count; ++i) {
                 if (entropyClasses.ClassSize(i) > 0) {
-                    // Take an arbitrary element from the sent
+                    // Take an arbitrary element from the set
                     lowestEntropyTile = entropyClasses.RandomFromClass(i);
                     lowestEntropy = i;
 
                     break;
                 }
             }
-
-            // Console.WriteLine($"{lowestEntropyTile.x} {lowestEntropyTile.y} @{lowestEntropy}");
 
             // If the tile has not been propagated yet
             uint did = this.Propagate(lowestEntropyTile, entropyClasses);
@@ -339,6 +316,7 @@ public class WFC2 {
             done += 1;
             this.entropy[x, y] = 0;
 
+            // Propagate the collapsed state
             done += this.Propagate(lowestEntropyTile, entropyClasses);
         }
     }

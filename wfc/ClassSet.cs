@@ -17,20 +17,14 @@ public class ClassSet<T> where T : IComparable {
         int c = this.setMap[@class].Count;
         this.setMap[@class].Add(element);
 
-        // Increase the count if the number of elements chanhed
-        if (c < this.setMap[@class].Count)
-            this.Count += 1;
+        // Increase the count if the number of elements changed
+        this.Count += (uint) (this.setMap[@class].Count - c);
     }
 
     public void Remove(uint @class, T element) {
-        // Console.WriteLine("Attempt");
-        if (!this.setMap.ContainsKey(@class))
+        if (!this.setMap.ContainsKey(@class) || !this.setMap[@class].Contains(element))
             return;
 
-        if (!this.setMap[@class].Contains(element))
-            return;
-        
-        // Console.WriteLine("Success");
         this.setMap[@class].Remove(element);
         this.Count -= 1;
     }

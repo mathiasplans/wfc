@@ -125,7 +125,6 @@ public class WaveFunctionEncoder {
         return new uint[this.encodeSize];
     }
     
-
     /**
      * Set the wave bit
      */

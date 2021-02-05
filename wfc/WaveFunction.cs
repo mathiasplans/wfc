@@ -6,7 +6,11 @@ public class WaveFunction {
     private uint[,][] constraints;
     public WaveFunctionEncoder wencoder;
     private int size;
+    private uint adjacencies;
+
     private void Initialize(Wave[] waves, uint adjacencies) {
+        this.adjacencies = adjacencies;
+
         // Encode the wave function
         this.wencoder = new WaveFunctionEncoder(waves);
         this.size = wencoder.GetSize();
@@ -62,9 +66,9 @@ public class WaveFunction {
 
                 // Iterate all the adjacencies
                 // TODO: use adjacencies
-                for (uint k = 0; k < 4; ++k) {
+                for (uint k = 0; k < this.adjacencies; ++k) {
                     // Also get the opposite side
-                    uint l = (k + 2) % 4;
+                    uint l = (k + this.adjacencies / 2) % this.adjacencies;
 
                     // Get the i-th constraint
                     uint[] acons = this.constraints[k, i];
