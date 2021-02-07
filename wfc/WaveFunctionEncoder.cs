@@ -7,12 +7,63 @@ public class WaveFunctionEncoder {
     private int size;
     private uint[] encoded;
     private int encodeSize;
+    private int encodeBytes;
 
     private Dictionary<Wave, int> waveOrder;
     private Dictionary<int, Wave> orderWave;
 
+    private float[] weights;
+    private float[,] weightLUT;
+
+    private void CreateLUT() {
+        // A method for getting the sum of weights
+        void FillLUTColumn(int index, int until, int column,
+                           float[,] LUT, uint LUTkey, float weight) {
+            // Leaf
+            if (index == until) {
+                LUT[column, LUTkey] = weight;
+                return;
+            }
+
+            uint newKey = LUTkey << 1;
+            int newIndex = index + 1;
+
+            FillLUTColumn(newIndex, until, column, LUT, newKey, weight);
+            FillLUTColumn(newIndex, until, column, LUT, newKey | 1U, weight + this.weights[index]);
+        }
+
+        // Construct a lookup table for weigths
+        this.weightLUT = new float[this.encodeBytes, 256];
+        for (int i = 0; i < this.size / 8; ++i) {
+            FillLUTColumn(8 * i, 8 * (i + 1), i, this.weightLUT, 0U, 0f);
+        }
+
+        int remainder = this.size % 8;
+        FillLUTColumn(this.size - remainder, this.size, this.size / 8, this.weightLUT, 0U, 0f);
+    }
+
     private void Initialize(Wave[] waves) {
         this.size = waves.Length;
+
+        // Sort the waves by weight
+        Array.Sort(waves, delegate(Wave w1, Wave w2) {
+            return w1.Weight.CompareTo(w2.Weight);
+        });
+
+        // Get the weights
+        this.weights = new float[this.size];
+        float sumOfWeights = 0f;
+        float weight;
+        for (uint i = 0; i < this.size; ++i) {
+            weight = waves[i].Weight;
+            this.weights[i] = weight;
+            sumOfWeights += weight;
+        }
+
+        // Normalize the weights
+        for (uint i = 0; i < this.size; ++i) {
+            this.weights[i] /= sumOfWeights;
+        }
 
         // How many words have to be used
         uint spareMask = 0;
@@ -20,6 +71,12 @@ public class WaveFunctionEncoder {
         if (this.size % 32 != 0) {
             this.encodeSize += 1;
             spareMask = ~0U << (this.size % 32);
+        }
+
+        // How many bytes
+        this.encodeBytes = this.size / 4;
+        if (this.size % 4 != 0) {
+            this.encodeBytes += 1;
         }
 
         // Mapping between the wave order and wave
@@ -41,6 +98,9 @@ public class WaveFunctionEncoder {
 
         // Last word
         this.encoded[this.encodeSize - 1] ^= spareMask;
+
+        // LUT
+        this.CreateLUT();
     }
 
     /**
@@ -225,18 +285,35 @@ public class WaveFunctionEncoder {
     }
 
     /**
-     * Get the entropy of the wave function. It counts the number of ones
-     * in the encoded uint array and then returns one less than that (entropy 1 should
-     * be minimum). The user has to make sure not to give an empty wave function as
-     * the argument, since entropy below 0 is not supported.
+     * Get the Shannone Entropy of the wave function.
      */
     public uint GetEntropy(uint[] waveFunction) {
-        uint entropy = 0;
-        foreach (uint slot in waveFunction) {
-            entropy += (uint) WFCPopCount.u32(slot);
+        // Get the sum of weigts
+        float sow = 0f;
+        int i = 0;
+        foreach (uint segment in waveFunction) {
+            uint s = segment;
+            for (uint j = 0; j < sizeof(uint) && i < this.encodeBytes; ++j, ++i) {
+                sow += this.weightLUT[i, s & 0xFFu];
+                s >>= 8;
+            }
         }
 
-        return entropy - 1;
+#if(DEBUG)
+        // The given wave function has no possible states (all zero)
+        if (sow == 0f)
+            throw new Exception("Requested the entropy of an empty wave function");
+#endif
+
+        float entropy = 0f;
+        this.ForEachWave(waveFunction, (rank) => {
+            float weight = this.weights[rank] / sow;
+
+            // Fast approximation of x*log(x)
+            entropy += weight * (1 - weight);
+        });
+
+        return (uint) (entropy * 10000f);
     }
 
     public void ForEachWave(uint[] waveFunction, Func<int, bool> action) {

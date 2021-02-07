@@ -117,34 +117,6 @@ namespace wfc.Tests {
         }
 
         [Fact]
-        public void Impossible() {
-            Wave[] waves = new Wave[] {new Wave(1, "A"), new Wave(1, "B")};
-
-            waves[0].AddConstraints(new Wave[] {waves[0]});
-            waves[1].AddConstraints(new Wave[] {waves[1]});
-
-            this.wencoder = new WaveFunctionEncoder(waves);
-
-            uint[][] testSpace = new uint[2][];
-            uint[][] control = new uint[2][];
-
-            // Construct the control
-            control[0] = this.wencoder.GetSolo(waves[0]);
-            control[1] = this.wencoder.GetEmpty();
-
-            // Construct the test space
-            testSpace[0] = this.wencoder.GetSolo(waves[0]);
-            testSpace[1] = this.wencoder.GetSolo(waves[1]);
-
-            this.wf = new WaveFunction(waves);
-
-            // Collapse
-            this.wf.Collapse(testSpace[0], testSpace[1]);
-
-            Assert.Equal(control, testSpace);
-        }
-
-        [Fact]
         public void MultipleCollapses() {
             Wave[] waves = new Wave[] {new Wave(1, "A"), new Wave(1, "B"), new Wave(1, "C")};
 

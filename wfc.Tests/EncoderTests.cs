@@ -11,10 +11,10 @@ namespace wfc.Tests {
          */
         public EncoderTests() {
             this.waves = new Wave[] {
-                new Wave(4, "0"),
-                new Wave(4, "1"),
-                new Wave(4, "2"),
-                new Wave(4, "3")
+                new Wave(4, "0", 0.25f),
+                new Wave(4, "1", 0.25f),
+                new Wave(4, "2", 0.25f),
+                new Wave(4, "3", 0.25f)
             };
 
             this.wencoder = new WaveFunctionEncoder(this.waves);
@@ -246,25 +246,14 @@ namespace wfc.Tests {
         }
 
         [Theory]
-        [InlineData(0b1000u, 0)]
-        [InlineData(0b0010u, 0)]
-        [InlineData(0b0101u, 1)]
-        [InlineData(0b1101u, 2)]
-        [InlineData(0b1111u, 3)]
-        [InlineData(0b1100110101u, 5)]
-        public void TestGetEntropy(uint input, uint expected) {
-            Assert.Equal(expected, this.wencoder.GetEntropy(new uint[] {input}));
-        }
-
-        [Theory]
-        [InlineData(0b0000u, 0b0001u, 0)]
-        [InlineData(0b0100u, 0b0000u, 0)]
-        [InlineData(0b1000u, 0b0010u, 1)]
-        [InlineData(0b1111u, 0b0000u, 3)]
-        [InlineData(0b1111u, 0b1111u, 7)]
-        public void TestGetEntropyMultiWord(uint i1, uint i2, uint expected) {
-            uint[] wf = new uint[] {i1, i2};
-            Assert.Equal(expected, this.wencoder.GetEntropy(wf));
+        [InlineData(0b1000u, 0b1100u)]
+        [InlineData(0b0010u, 0b1010u)]
+        [InlineData(0b0101u, 0b1101u)]
+        [InlineData(0b1101u, 0b1111u)]
+        public void TestGetEntropy(uint input1, uint input2) {
+            uint[] i1 = new uint[] {input1};
+            uint[] i2 = new uint[] {input2};
+            Assert.True(this.wencoder.GetEntropy(i1) < this.wencoder.GetEntropy(i2));
         }
 
         [Theory]
@@ -274,14 +263,20 @@ namespace wfc.Tests {
         [InlineData(0b0000100000u)]
         public void TestForEachWaveIterations(uint input) {
             uint[] wf = new uint[] {input};
-            uint entropy = this.wencoder.GetEntropy(wf);
+            uint expected = 0, inputShift = input;
+            while (inputShift != 0) {
+                if ((inputShift & 1u) == 1u)
+                    expected += 1;
+
+                inputShift >>= 1;
+            }
 
             uint count = 0;
             this.wencoder.ForEachWave(wf, (order) => {
                 count += 1;
             });
 
-            Assert.Equal(entropy + 1, count);
+            Assert.Equal(expected, count);
         }
 
         [Theory]

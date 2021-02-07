@@ -6,10 +6,20 @@ public class Wave {
     private Wave[][] constraints;
     public readonly string name;
 
+    public readonly float Weight;
+
     public Wave(uint adjacencies, string name) {
         this.adjacencies = adjacencies;
         this.constraints = new Wave[adjacencies][];
         this.name = name;
+        this.Weight = 1f;
+    }
+
+    public Wave(uint adjacencies, string name, float weight) {
+        this.adjacencies = adjacencies;
+        this.constraints = new Wave[adjacencies][];
+        this.name = name;
+        this.Weight = weight;
     }
 
     public void AddConstraints(uint side, Wave[] waves) {
@@ -31,7 +41,7 @@ public class Wave {
     }
 
     public Wave ShiftedWave() {
-        Wave newWave = new Wave(this.adjacencies, this.name);
+        Wave newWave = new Wave(this.adjacencies, this.name, this.Weight);
         for (uint i = 0; i < this.GetSides(); ++i) {
             newWave.AddConstraints((i + 1) % this.GetSides(), this.constraints[i]);
         }
