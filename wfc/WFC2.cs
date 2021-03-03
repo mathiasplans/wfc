@@ -287,15 +287,8 @@ public class WFC2 {
             // The value of lowestEntropyTile should be non-default after
             // the loop. If it is not, then there is a severe bug
             // somewhere in this loop.
-            for (uint i = 0; i < this.waves.Count; ++i) {
-                if (entropyClasses.ClassSize(i) > 0) {
-                    // Take an arbitrary element from the set
-                    lowestEntropyTile = entropyClasses.RandomFromClass(i);
-                    lowestEntropy = i;
-
-                    break;
-                }
-            }
+            lowestEntropy = entropyClasses.GetMinClassNonZero();
+            lowestEntropyTile = entropyClasses.RandomFromClass(lowestEntropy);
 
             // If the tile has not been propagated yet
             uint did = this.Propagate(lowestEntropyTile, entropyClasses);
@@ -310,7 +303,6 @@ public class WFC2 {
 
             // Collapse the wave on the tile
             this.core.Collapse(this.grid[x, y], this.entropy[x, y]);
-
             // Change the entropy class
             entropyClasses.ChangeClass(lowestEntropy, 0, lowestEntropyTile);
             done += 1;
@@ -318,6 +310,9 @@ public class WFC2 {
 
             // Propagate the collapsed state
             done += this.Propagate(lowestEntropyTile, entropyClasses);
+
+            /// TODOOOOOO: 
+            Console.WriteLine(need);
         }
     }
 }

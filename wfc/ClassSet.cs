@@ -49,6 +49,16 @@ public class ClassSet<T> where T : IComparable {
         return minKey;
     }
 
+    public uint GetMinClassNonZero() {
+        uint minKey = ~0U;
+        foreach (uint key in this.setMap.Keys) {
+            if (minKey > key && this.setMap[key].Count > 0 && key != 0)
+                minKey = key;
+        }
+
+        return minKey;
+    }
+
     public int ClassSize(uint @class) {
         if (!this.setMap.ContainsKey(@class))
             return 0;
