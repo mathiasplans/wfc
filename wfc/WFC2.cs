@@ -44,15 +44,22 @@ public class WFC2 {
         this.waves.AddRange(waves);
     }
 
+    public void Encode() {
+        this.Encode(false);
+    }
+
     /**
      * Encode the wave function
      */
-    public void Encode() {
+    public void Encode(bool fix) {
         // 2D grid has 4 directions: North, South, East, West
         this.core = new WaveFunction(this.waves.ToArray(), 4);
-        Wave[] cw = this.core.GetSymmetryFaults();
-        if (cw != null)
-            throw new Exception($"Given waves' adjacency rules are not symmetrical: {cw[0].name} and {cw[1].name}");
+        Wave[] cw = null;;
+        if (!fix) {
+            cw = this.core.GetSymmetryFaults();
+            if (cw != null)
+                throw new Exception($"Given waves' adjacency rules are not symmetrical: {cw[0].name} and {cw[1].name}");
+        }
     }
 
     /**
@@ -302,7 +309,7 @@ public class WFC2 {
             uint y = lowestEntropyTile.y;
 
             // Collapse the wave on the tile
-            this.core.Collapse(this.grid[x, y], this.entropy[x, y]);
+            this.core.Collapse(this.grid[x, y]);
             // Change the entropy class
             entropyClasses.ChangeClass(lowestEntropy, 0, lowestEntropyTile);
             done += 1;
@@ -310,9 +317,6 @@ public class WFC2 {
 
             // Propagate the collapsed state
             done += this.Propagate(lowestEntropyTile, entropyClasses);
-
-            /// TODOOOOOO: 
-            Console.WriteLine(need);
         }
     }
 }

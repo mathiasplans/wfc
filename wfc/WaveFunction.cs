@@ -34,6 +34,49 @@ public class WaveFunction {
                 }
             }
         }
+
+        uint fixedTotal = 0U;
+
+        // Fix the adjacencies
+        // Iterate through all the pairs of wave functions
+        for (int i = 0; i < this.wencoder.waves.Length - 1; ++i) {
+            // Get the i-th wavefunction
+            uint[] a = this.wencoder.GetSolo(this.wencoder.waves[i]);
+
+            for (int j = i + 1; j < this.wencoder.waves.Length; ++j) {
+                // Get the j-th wavefunction
+                uint[] b = this.wencoder.GetSolo(this.wencoder.waves[j]);
+
+                // Iterate all the adjacencies
+                // TODO: use adjacencies
+                for (uint k = 0; k < this.adjacencies; ++k) {
+                    // Also get the opposite side
+                    uint l = (k + this.adjacencies / 2) % this.adjacencies;
+
+                    // Get the i-th constraint
+                    uint[] acons = this.constraints[k, i];
+
+                    // Get the j-th constraint
+                    uint[] bcons = this.constraints[l, j];
+
+                    // Fix all the conflicts
+                    bool aok = false, bok = false;
+                    for (uint m = 0; m < this.wencoder.GetEncodeSize(); ++m) {
+                        aok |= (a[m] & bcons[m]) != 0;
+                        bok |= (b[m] & acons[m]) != 0;
+                    }
+                    
+                    // If the relation is asymmetrical
+                    if (aok != bok) {
+                        fixedTotal += 1;
+                        this.wencoder.SetWave(this.constraints[k, i], j);
+                        this.wencoder.SetWave(this.constraints[l, j], i);
+                    }
+                }
+            }
+        }
+
+        Console.WriteLine("Fixed " + fixedTotal + " adjacensies");
     }
 
     public WaveFunction(Wave[] waves) {
@@ -99,6 +142,43 @@ public class WaveFunction {
         return null;
     }
 
+    public void FixSymmetryFaults() {
+        // Iterate through all the pairs of wave functions
+        for (uint i = 0; i < this.wencoder.waves.Length - 1; ++i) {
+            // Get the i-th wavefunction
+            uint[] a = this.wencoder.GetSolo(this.wencoder.waves[i]);
+
+            for (uint j = i + 1; j < this.wencoder.waves.Length; ++j) {
+                // Get the j-th wavefunction
+                uint[] b = this.wencoder.GetSolo(this.wencoder.waves[j]);
+
+                // Iterate all the adjacencies
+                // TODO: use adjacencies
+                for (uint k = 0; k < this.adjacencies; ++k) {
+                    // Also get the opposite side
+                    uint l = (k + this.adjacencies / 2) % this.adjacencies;
+
+                    // Get the i-th constraint
+                    uint[] acons = this.constraints[k, i];
+
+                    // Get the j-th constraint
+                    uint[] bcons = this.constraints[l, j];
+
+                    // If there is a conflict, return it
+                    bool aok = false, bok = false;
+                    for (uint m = 0; m < this.wencoder.GetEncodeSize(); ++m) {
+                        aok |= (a[m] & bcons[m]) != 0U;
+                        bok |= (b[m] & acons[m]) != 0U;
+                    }
+
+                    // We fail if not symmetrical aka different
+                    if (aok ^ bok) {
+                    }
+                }
+            }
+        }
+    }
+
      /**
      * Collapse the possibility space a bit.
      * Returns a new entropy of the collapsable
@@ -149,11 +229,13 @@ public class WaveFunction {
         return seed ^ (seed >> 5) ^ (seed << 15) ^ (seed >> 20) ^ (seed << 7) ^ 0xDEADBEEF;
     }
 
-    private uint randomSeed = 0xFFFF;
+    private uint randomSeed = 0x9999;
+    Random rnd = new Random();
 
     private uint next() {
-        this.randomSeed = random(this.randomSeed);
-        return this.randomSeed;
+        // this.randomSeed = random(this.randomSeed);
+        // return this.randomSeed;
+        return (uint) rnd.Next();
     }
 
     /**
@@ -163,29 +245,16 @@ public class WaveFunction {
         return next() % max;
     }
 
+    private float next01() {
+        return (float) rnd.NextDouble();
+    }
+
     /**
      * Collapse a single wave function to a single wave
      * For now, we just take a random wave
      */
-    public void Collapse(uint[] collapsable, uint entropy) {
-        if (entropy == 0)
-            return;
-
-        // Get a random number in [0, entropy)
-        uint rank = this.next(entropy);
-        uint i = 0;
-
-        // Variable where the order of the selected wave will be store
-        int rankOrder = 0;
-
-        // Iterate rank times.
-        this.wencoder.ForEachWave(collapsable, (order) => {
-            ++i;
-            rankOrder = order;
-            return i == rank;
-        });
-
+    public void Collapse(uint[] collapsable) {
         // Set the bit at rankOrder and reset all the other bits
-        this.wencoder.SelectWave(collapsable, rankOrder);
+        this.wencoder.WeightedSelect(collapsable, next01());
     }
 }

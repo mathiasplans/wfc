@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System;
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.IO;
 
 public class Imitator2D {
     Bitmap imitee;
@@ -27,9 +28,25 @@ public class Imitator2D {
             hash ^= (11127U + image[i].G) * i;
             hash ^= ((uint) image[i].R * image[i].G + i) * 29U;
             hash ^= ((uint) image[i].B) << (int)(12 + (i % 12));
+            hash ^= hash >> 12;
         }
 
         return (int) hash;
+    }
+
+    private int NeighborHash(int spriteHash, int[] nHash) {
+        int newHash = 0x9876ABC;
+
+        // Has to incorporate spriteHash, as well as
+        // all the neighbours' hashes so that the
+        // direction is preserved.
+        newHash ^= spriteHash;
+        newHash ^= (nHash[0] << 8) | (nHash[0] >> -8);
+        newHash ^= (nHash[1] << 12) | (nHash[1] >> -12);
+        newHash ^= (nHash[2] << 16) | (nHash[2] >> -16);
+        newHash ^= (nHash[3] << 24) | (nHash[3] >> -24);
+
+        return newHash;
     }
 
     public Imitator2D(string path, int dim) {
@@ -48,7 +65,10 @@ public class Imitator2D {
     public void Imitate(uint newx, uint newy) {
         this.newx = newx;
         this.newy = newy;
+
+        Dictionary<int, int> hashCount = new Dictionary<int, int>();
         int hashcount = 0;
+
         // Iterate all the cells
         for (int y = 0; y < this.imgh; y += this.dim) {
             for (int x = 0; x < this.imgw; x += this.dim) {
@@ -56,7 +76,8 @@ public class Imitator2D {
                 Color[] sprite = new Color[this.dim * this.dim];
                 for (int sy = 0; sy < this.dim; ++sy) {
                     for (int sx = 0; sx < this.dim; ++sx) {
-                        sprite[sx + this.dim * sy] = this.imitee.GetPixel(x + sx, y + sy);
+                        int index = sx + this.dim * sy;
+                        sprite[index] = this.imitee.GetPixel(x + sx, y + sy);
                     }
                 }
 
@@ -75,77 +96,143 @@ public class Imitator2D {
             }
         }
 
-        // Now that we have loaded the image and split it into sprites,
-        // we can start detecting the adjacency rules
-        for (int y = 0; y < this.imgh / this.dim; ++y) {
-            for (int x = 0; x < this.imgw / this.dim; ++x) {
-                // Take the hash on this coordinate
+        int[,] neighHashMap = new int[this.imgw / this.dim, this.imgh / this.dim];
+        int[] nHashes = new int[4];
+        Dictionary<int, int[]> neighbours = new Dictionary<int, int[]>();
+        Dictionary<int, int> originals = new Dictionary<int, int>();
+        Dictionary<int, HashSet<int>> news = new Dictionary<int, HashSet<int>>();
+        for (int y = 1; y < this.imgh / this.dim - 1; ++y) {
+            for (int x = 1; x < this.imgw / this.dim - 1; ++x) {
+                // Get the hash of the cell
                 int hash = this.hashMap[x, y];
 
-                // If the hash is encountered for the first time
-                if (!this.adjacencies.ContainsKey(hash)) {
-                    this.adjacencies.Add(hash, new HashSet<int>[4]);
-                    this.adjacencies[hash][0] = new HashSet<int>();
-                    this.adjacencies[hash][1] = new HashSet<int>();
-                    this.adjacencies[hash][2] = new HashSet<int>();
-                    this.adjacencies[hash][3] = new HashSet<int>();                
-                }
+                // Get the neighbouring hashes
+                nHashes[0] = 0;
+                nHashes[1] = 0;
+                nHashes[2] = 0;
+                nHashes[3] = 0;
 
                 // Check the north
-                if (y > 0) {
-                    this.adjacencies[hash][0].Add(this.hashMap[x, y - 1]);
-                }
+                nHashes[0] = this.hashMap[x, y - 1];
 
                 // Check the east
-                if (x < this.imgw / this.dim - 1) {
-                    this.adjacencies[hash][1].Add(this.hashMap[x + 1, y]);
-                }
+                nHashes[1] = this.hashMap[x + 1, y];
 
                 // Check the south
-                if (y < this.imgh / this.dim - 1) {
-                    this.adjacencies[hash][2].Add(this.hashMap[x, y + 1]);
-                }
+                nHashes[2] = this.hashMap[x, y + 1];
 
                 // Check the west
-                if (x > 0) {
-                    this.adjacencies[hash][3].Add(this.hashMap[x - 1, y]);
+                nHashes[3] = this.hashMap[x - 1, y];
+
+                // Get the complete hash
+                int completeHash = this.NeighborHash(hash, nHashes);
+                neighHashMap[x, y] = completeHash;
+                
+                // Count the new hashes
+                if (!hashCount.ContainsKey(completeHash)) {
+                    hashCount.Add(completeHash, 1);
+                    originals.Add(completeHash, hash);
+
+                    // Add to the mapping from old to new
+                    if (!news.ContainsKey(hash))
+                        news.Add(hash, new HashSet<int>());
+
+                    news[hash].Add(completeHash);
                 }
+
+                else 
+                    hashCount[completeHash] += 1;
             }
         }
 
+        // Detect the neighbours
+        for (int y = 2; y < this.imgh / this.dim - 2; ++y) {
+            for (int x = 2; x < this.imgw / this.dim - 2; ++x) {
+                // Get the hash of the cell
+                int hash = neighHashMap[x, y];
+
+                if (neighbours.ContainsKey(hash))
+                    continue;
+
+                // Get the neighbouring hashes
+                nHashes[0] = 0;
+                nHashes[1] = 0;
+                nHashes[2] = 0;
+                nHashes[3] = 0;
+
+                // Check the north
+                nHashes[0] = neighHashMap[x, y - 1];
+
+                // Check the east
+                nHashes[1] = neighHashMap[x + 1, y];
+
+                // Check the south
+                nHashes[2] = neighHashMap[x, y + 1];
+
+                // Check the west
+                nHashes[3] = neighHashMap[x - 1, y];
+
+                neighbours.Add(hash, new int[] {nHashes[0], nHashes[1], nHashes[2], nHashes[3]});
+            }
+        }
+
+        // Weights
+        int cellCount = this.imgh * this.imgw / (this.dim * this.dim);
+        Dictionary<int, float> weights = new Dictionary<int, float>();
+        Dictionary<int, Color[]> newHashToImage = new Dictionary<int, Color[]>();
+
+        foreach (int hash in hashCount.Keys) {
+            weights.Add(hash, ((float) hashCount[hash]) / ((float) cellCount));
+        }
+
+        // Remap the images from original hashes to new hashes
+        foreach (int hash in hashCount.Keys) {
+            newHashToImage.Add(hash, this.hashToImage[originals[hash]]);
+        }
+
+        this.hashToImage = newHashToImage;
+
         // We have all the info we need to start encoding it
         // Create all the necessary waves
-        foreach (int hash in this.hashToImage.Keys) {
-            Wave wave = new Wave(4, hash.ToString());
+        foreach (int hash in hashCount.Keys) {
+            Wave wave = new Wave(4, hash.ToString(), weights[hash]);
             this.hashToWave.Add(hash, wave);
         }
 
         // Add the adjacencies
-        foreach (int hash in this.hashToImage.Keys) {
+        foreach (int hash in neighbours.Keys) {
             Wave wave = this.hashToWave[hash];
+            int[] adjs = neighbours[hash];
 
             // Adjacencies
             for (uint i = 0; i < 4; ++i) {
-                HashSet<int> adjs = this.adjacencies[hash][i];
-                List<Wave> adjs_waves = new List<Wave>();
+                if (adjs[i] == 0) {
+                    wave.AddConstraints(i, new Wave[0]);
+                    continue;
+                }
 
-                // Take all the adjacencies from the set
-                foreach (int adj_hash in adjs) {
-                    adjs_waves.Add(this.hashToWave[adj_hash]);
+                // Get all the alternatives
+                int orig = originals[adjs[i]];
+                HashSet<int> alts = news[orig];
+
+                // As Waves
+                List<Wave> nwaves = new List<Wave>();
+                foreach (int ah in alts) {
+                    nwaves.Add(hashToWave[ah]);
                 }
 
                 // Add the adjacencies
-                wave.AddConstraints(i, adjs_waves.ToArray());
+                wave.AddConstraints(i, nwaves.ToArray());
             }
         }
 
         // Now get the list of Waves
         List<Wave> waves = new List<Wave>();
-        foreach (int hash in this.hashToImage.Keys) {
+        foreach (int hash in hashCount.Keys) {
             waves.Add(this.hashToWave[hash]);
         }
 
-        Console.WriteLine(waves.Count);
+        Console.WriteLine("Total amount of waves: " + waves.Count);
 
         // Create WFC object
         this.wfc = new WFC2(newx, newy);
@@ -159,8 +246,7 @@ public class Imitator2D {
         int width = this.dim * (int) this.newx;
         int height = this.dim * (int) this.newy;
 
-        uint[] image = new uint[width * height];
-        var gchImage = GCHandle.Alloc(image, GCHandleType.Pinned);
+        Bitmap bmp = new Bitmap(width, height);
 
         for (int y = 0; y < this.newy; ++y) {
             for (int x = 0; x < this.newx; ++x) {
@@ -177,25 +263,13 @@ public class Imitator2D {
                         int index = sx + sy * this.dim;
 
                         Color pixel = sprite[index];
-                        uint red = pixel.R;
-                        uint green = pixel.G;
-                        uint blue = pixel.B;
-                        image[index] = (red << 16) | (green << 8) | blue;
+                        bmp.SetPixel(x * this.dim + sx, y * this.dim + sy, pixel);
                     }
                 }
             }
         }
 
-        Bitmap newImage = new Bitmap(
-            width, height, width * 3,
-            PixelFormat.Format32bppPArgb,
-            gchImage.AddrOfPinnedObject()
-        );
-
         // Save the bitmap into a file
-        newImage.Save(filename);
-
-        // Unpin the memory region
-        gchImage.Free();
+        bmp.Save(filename, ImageFormat.Png);
     }
 }

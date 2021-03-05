@@ -2,8 +2,11 @@ using System;
 
 public class WFCService {
     public static void Main() {
-        Imitator2D imit = new Imitator2D("wfc/jawbreaker_sample.png", 8);
-        imit.Imitate(20, 40);
-        imit.Save("MyCreation.png");
+        // Imitator2D imit = new Imitator2D("wfc/wang-2c.png", 32);
+        // imit.Imitate(32, 32);
+        // imit.Save("MyCreation.png");
+
+        Demo d = new Demo(20, 20);
+        d.Save("MyCreation.png");
     }
 }

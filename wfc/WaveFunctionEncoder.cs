@@ -47,7 +47,7 @@ public class WaveFunctionEncoder {
 
         // Sort the waves by weight
         Array.Sort(waves, delegate(Wave w1, Wave w2) {
-            return w1.Weight.CompareTo(w2.Weight);
+            return w2.Weight.CompareTo(w1.Weight);
         });
 
         // Get the weights
@@ -284,20 +284,32 @@ public class WaveFunctionEncoder {
         }
     }
 
+    private float GetSumOfWeights(uint[] waveFunction) {
+        // Get the sum of weigts
+        float sow = 0f;
+        // int i = 0;
+        // foreach (uint segment in waveFunction) {
+        //     uint s = segment;
+        //     for (uint j = 0; j < sizeof(uint) && i < this.encodeBytes; ++j, ++i) {
+        //         sow += this.weightLUT[i, s & 0xFFu];
+        //         s >>= 8;
+        //     }
+        // }
+
+        // TODO: fix the LUT
+
+        this.ForEachWave(waveFunction, (rank) => {
+            sow += this.weights[rank];
+        });
+
+        return sow;
+    }
+
     /**
      * Get the Shannone Entropy of the wave function.
      */
     public uint GetEntropy(uint[] waveFunction) {
-        // Get the sum of weigts
-        float sow = 0f;
-        int i = 0;
-        foreach (uint segment in waveFunction) {
-            uint s = segment;
-            for (uint j = 0; j < sizeof(uint) && i < this.encodeBytes; ++j, ++i) {
-                sow += this.weightLUT[i, s & 0xFFu];
-                s >>= 8;
-            }
-        }
+        float sow = this.GetSumOfWeights(waveFunction);
 
 #if(DEBUG)
         // The given wave function has no possible states (all zero)
@@ -314,6 +326,31 @@ public class WaveFunctionEncoder {
         });
 
         return (uint) (entropy * 10000f);
+    }
+
+    public void WeightedSelect(uint[] waveFunction, float r) {
+        float sow = this.GetSumOfWeights(waveFunction);
+
+        float random = sow * r;
+        float cumulativeWeight = 0.0f;
+        int seekRank = 0;
+        this.ForEachWave(waveFunction, (rank) => {
+            cumulativeWeight += this.weights[rank];
+            if (random < cumulativeWeight) {
+                seekRank = rank;
+                return true;
+            }
+
+            return false;
+        });
+
+        float s = 0f;
+        this.ForEachWave(waveFunction, (rank) => {
+            s+= this.weights[rank];
+        });
+
+        // Select the wave
+        this.SelectWave(waveFunction, seekRank);
     }
 
     public void ForEachWave(uint[] waveFunction, Func<int, bool> action) {
