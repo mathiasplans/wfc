@@ -25,11 +25,11 @@ public class WaveFunctionEncoder {
                 return;
             }
 
-            uint newKey = LUTkey << 1;
+            uint newKey = LUTkey >> 1;
             int newIndex = index + 1;
 
             FillLUTColumn(newIndex, until, column, LUT, newKey, weight);
-            FillLUTColumn(newIndex, until, column, LUT, newKey | 1U, weight + this.weights[index]);
+            FillLUTColumn(newIndex, until, column, LUT, newKey | 128U, weight + this.weights[index]);
         }
 
         // Construct a lookup table for weigths
@@ -287,20 +287,14 @@ public class WaveFunctionEncoder {
     private float GetSumOfWeights(uint[] waveFunction) {
         // Get the sum of weigts
         float sow = 0f;
-        // int i = 0;
-        // foreach (uint segment in waveFunction) {
-        //     uint s = segment;
-        //     for (uint j = 0; j < sizeof(uint) && i < this.encodeBytes; ++j, ++i) {
-        //         sow += this.weightLUT[i, s & 0xFFu];
-        //         s >>= 8;
-        //     }
-        // }
-
-        // TODO: fix the LUT
-
-        this.ForEachWave(waveFunction, (rank) => {
-            sow += this.weights[rank];
-        });
+        int i = 0;
+        foreach (uint segment in waveFunction) {
+            uint s = segment;
+            for (uint j = 0; j < sizeof(uint) && i < this.encodeBytes; ++j, ++i) {
+                sow += this.weightLUT[i, s & 0xFFu];
+                s >>= 8;
+            }
+        }
 
         return sow;
     }

@@ -6,7 +6,7 @@ public class WFCService {
         // imit.Imitate(32, 32);
         // imit.Save("MyCreation.png");
 
-        Demo d = new Demo(20, 20);
+        Demo d = new Demo(40, 40);
         d.Save("MyCreation.png");
     }
 }

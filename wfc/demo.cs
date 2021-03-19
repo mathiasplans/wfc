@@ -22,7 +22,7 @@ public class Demo {
         this.newx = newx;
         this.newy = newy;
 
-        this.src = new Bitmap("wfc/greek.png");
+        this.src = new Bitmap("square.png");
         this.sprites = new List<Color[]>();
         this.dim = 32;
         this.imgh = this.src.Height;
