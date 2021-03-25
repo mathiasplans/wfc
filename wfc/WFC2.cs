@@ -127,15 +127,17 @@ public class WFC2 {
      * The ClassSet object requires that the stored object
      * is IComparable.
      */
-    struct Tile : IComparable {
+    struct Tile {//: IComparable {
         public uint x;
         public uint y;
         public bool valid;
+        public uint entropy;
 
-        public Tile(uint x, uint y) {
+        public Tile(uint x, uint y, uint entropy) {
             this.x = x;
             this.y = y;
             this.valid = false;
+            this.entropy = entropy;
         }
 
         public void Set(uint x, uint y) {
@@ -148,16 +150,26 @@ public class WFC2 {
             this.Set(x, y);
         }
 
-        public override bool Equals(object obj) {
-            return this.GetHashCode() == obj.GetHashCode();
+        public void Set(uint x, uint y, uint entropy) {
+            this.entropy = entropy;
+            this.Set(x, y);
         }
 
-        public int CompareTo(Object other) {
-            return this.GetHashCode() - other.GetHashCode();
+        public void Set(uint x, uint y, bool valid, uint entropy) {
+            this.entropy = entropy;
+            this.Set(x, y, valid);
         }
+
+        // public override bool Equals(object obj) {
+        //     return this.GetHashCode() == obj.GetHashCode();
+        // }
+
+        // public int CompareTo(Object other) {
+        //     return this.GetHashCode() - other.GetHashCode();
+        // }
 
         public override int GetHashCode() {
-            int hashCode = 0;
+            int hashCode = (int) (this.x + this.y);
             hashCode = (hashCode * 397) ^ this.x.GetHashCode();
             hashCode = (hashCode * 397) ^ this.y.GetHashCode();
             return hashCode;
@@ -172,12 +184,13 @@ public class WFC2 {
         }
     }
 
-    private uint Propagate(Tile lowestEntropyTile, ClassSet<Tile> entropyClasses) {
-        ClassSet<Tile> propagation = new ClassSet<Tile>();
+    private uint Propagate(Tile lowestEntropyTile, Heap<Tile> entropyClasses) {
+        Heap<Tile> propagation = new Heap<Tile>(Comparer<Tile>.Create((x, y) => {return (int)y.entropy - (int)x.entropy;}));
         uint done = 0;
 
         // Now we need to propagate the change
-        propagation.Add(0, lowestEntropyTile);
+        lowestEntropyTile.entropy = 0U;
+        propagation.Add(lowestEntropyTile);
 
         // Propagation tile
         Tile pt;
@@ -198,9 +211,7 @@ public class WFC2 {
         // elements.
         while (propagation.Count > 0) {
             // Get the propagator. Note that it has the lowest entropy
-            uint propagatorClass = propagation.GetMinClass();
-            pt = propagation.RandomFromClass(propagatorClass);
-            propagation.Remove(propagatorClass, pt);
+            pt = propagation.Pop();
 
             // Get the propagator wave function
             propagator = this.grid[pt.x, pt.y];
@@ -237,9 +248,6 @@ public class WFC2 {
 
                 // The wavefunction changed due to propagation
                 if (propageeEntropy != newEntropy) {
-                    // Change the entropy class
-                    entropyClasses.ChangeClass(propageeEntropy, newEntropy, dt);
-
                     // Update done
                     if (newEntropy == 0)
                         done += 1;
@@ -248,8 +256,12 @@ public class WFC2 {
                     this.entropy[dt.x, dt.y] = newEntropy;
 
                     // This will also propagate
-                    Tile nt = new Tile(dt.x, dt.y);
-                    propagation.Add(newEntropy, nt);
+                    Tile nt = new Tile(dt.x, dt.y, newEntropy);
+                    propagation.Add(nt);
+
+                    // Change the entropy class
+                    if (entropyClasses.Contains(dt))
+                        entropyClasses.Decrease(dt, nt);
                 }
             }
         }
@@ -273,20 +285,17 @@ public class WFC2 {
             }
         });
 
-        ClassSet<Tile> entropyClasses = new ClassSet<Tile>();
+        Heap<Tile> entropyClasses = new Heap<Tile>(Comparer<Tile>.Create((x, y) => {return (int)y.entropy - (int)x.entropy;}));
 
         // Fill the classes
         this.ForEachTile((x, y) => {
-            uint entropy = this.entropy[x, y];
-            entropyClasses.Add(entropy, new Tile(x, y));
+            entropyClasses.Add(new Tile(x, y, this.entropy[x, y]));
         });
 
         if (this.dimx * this.dimy != entropyClasses.Count)
             throw new Exception($"Some tiles are missing from the entropy classes: expected {this.dimx * this.dimy}, is {entropyClasses.Count}");
 
-        Tile lowestEntropyTile = new Tile(0, 0);
-        uint lowestEntropy = 0;
-        ClassSet<Tile> propagation = new ClassSet<Tile>();
+        Tile lowestEntropyTile = new Tile(0, 0, 0);
 
         // Execute until every tile has 0 entropy
         while (done < need) {
@@ -294,8 +303,7 @@ public class WFC2 {
             // The value of lowestEntropyTile should be non-default after
             // the loop. If it is not, then there is a severe bug
             // somewhere in this loop.
-            lowestEntropy = entropyClasses.GetMinClassNonZero();
-            lowestEntropyTile = entropyClasses.RandomFromClass(lowestEntropy);
+            lowestEntropyTile = entropyClasses.Pop();
 
             // If the tile has not been propagated yet
             uint did = this.Propagate(lowestEntropyTile, entropyClasses);
@@ -310,8 +318,9 @@ public class WFC2 {
 
             // Collapse the wave on the tile
             this.core.Collapse(this.grid[x, y]);
+            
             // Change the entropy class
-            entropyClasses.ChangeClass(lowestEntropy, 0, lowestEntropyTile);
+            // entropyClasses.ChangeClass(lowestEntropy, 0, lowestEntropyTile);
             done += 1;
             this.entropy[x, y] = 0;
 
