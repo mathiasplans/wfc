@@ -28,7 +28,6 @@ public class WaveFunction {
 
                 // Initialize the waveFunction
                 this.constraints[j, order] = new uint[this.wencoder.GetEncodeSize()];
-
                 foreach (Wave wave in consts) {
                     this.wencoder.SetWave(this.constraints[j, order], wave);
                 }
@@ -87,98 +86,6 @@ public class WaveFunction {
         this.Initialize(waves, adjacencies);
     }
 
-    /**
-     * Checks among the waves added to this object if they
-     * are comparable with each other. For example, if tile A can be next
-     * to B, but B can't be next to A, then the check fails. In other
-     * words, the method checks whether the relation between tiles
-     * is symmetrical.
-     * 
-     * If the check fails, the offending tiles are listed in the returned
-     * array. On no conflict null is returned.
-     */
-    public Wave[] GetSymmetryFaults() {
-        // Iterate through all the pairs of wave functions
-        for (uint i = 0; i < this.wencoder.waves.Length - 1; ++i) {
-            // Get the i-th wavefunction
-            uint[] a = this.wencoder.GetSolo(this.wencoder.waves[i]);
-
-            for (uint j = i + 1; j < this.wencoder.waves.Length; ++j) {
-                // Get the j-th wavefunction
-                uint[] b = this.wencoder.GetSolo(this.wencoder.waves[j]);
-
-                // Iterate all the adjacencies
-                // TODO: use adjacencies
-                for (uint k = 0; k < this.adjacencies; ++k) {
-                    // Also get the opposite side
-                    uint l = (k + this.adjacencies / 2) % this.adjacencies;
-
-                    // Get the i-th constraint
-                    uint[] acons = this.constraints[k, i];
-
-                    // Get the j-th constraint
-                    uint[] bcons = this.constraints[l, j];
-
-                    // If there is a conflict, return it
-                    bool aok = false, bok = false;
-                    for (uint m = 0; m < this.wencoder.GetEncodeSize(); ++m) {
-                        aok |= (a[m] & bcons[m]) != 0U;
-                        bok |= (b[m] & acons[m]) != 0U;
-                    }
-
-                    // We fail if not symmetrical aka different
-                    if (aok ^ bok) {
-                        // Console.WriteLine("Failed:");
-                        // Console.WriteLine($"    A: {this.wencoder.FormatWave(a)}");
-                        // Console.WriteLine($"BCONS: {this.wencoder.FormatWave(bcons)}");
-                        // Console.WriteLine($"    B: {this.wencoder.FormatWave(b)}");
-                        // Console.WriteLine($"ACONS: {this.wencoder.FormatWave(acons)}");
-                        return new Wave[] {this.wencoder.waves[i], this.wencoder.waves[j]};
-                    }
-                }
-            }
-        }
-
-        return null;
-    }
-
-    public void FixSymmetryFaults() {
-        // Iterate through all the pairs of wave functions
-        for (uint i = 0; i < this.wencoder.waves.Length - 1; ++i) {
-            // Get the i-th wavefunction
-            uint[] a = this.wencoder.GetSolo(this.wencoder.waves[i]);
-
-            for (uint j = i + 1; j < this.wencoder.waves.Length; ++j) {
-                // Get the j-th wavefunction
-                uint[] b = this.wencoder.GetSolo(this.wencoder.waves[j]);
-
-                // Iterate all the adjacencies
-                // TODO: use adjacencies
-                for (uint k = 0; k < this.adjacencies; ++k) {
-                    // Also get the opposite side
-                    uint l = (k + this.adjacencies / 2) % this.adjacencies;
-
-                    // Get the i-th constraint
-                    uint[] acons = this.constraints[k, i];
-
-                    // Get the j-th constraint
-                    uint[] bcons = this.constraints[l, j];
-
-                    // If there is a conflict, return it
-                    bool aok = false, bok = false;
-                    for (uint m = 0; m < this.wencoder.GetEncodeSize(); ++m) {
-                        aok |= (a[m] & bcons[m]) != 0U;
-                        bok |= (b[m] & acons[m]) != 0U;
-                    }
-
-                    // We fail if not symmetrical aka different
-                    if (aok ^ bok) {
-                    }
-                }
-            }
-        }
-    }
-
      /**
      * Collapse the possibility space a bit.
      * Returns a new entropy of the collapsable
@@ -225,11 +132,11 @@ public class WaveFunction {
         return this.wencoder.GetEntropy(collapsable);
     }
 
-    private uint random(uint seed) {
-        return seed ^ (seed >> 5) ^ (seed << 15) ^ (seed >> 20) ^ (seed << 7) ^ 0xDEADBEEF;
-    }
+    // private uint random(uint seed) {
+    //     return seed ^ (seed >> 5) ^ (seed << 15) ^ (seed >> 20) ^ (seed << 7) ^ 0xDEADBEEF;
+    // }
 
-    private uint randomSeed = 0x9999;
+    // private uint randomSeed = 0x9999;
     Random rnd = new Random();
 
     private uint next() {

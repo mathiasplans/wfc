@@ -21,6 +21,8 @@ public class WaveFunctionEncoder {
                            float[,] LUT, uint LUTkey, float weight) {
             // Leaf
             if (index == until) {
+                // Correct the LUTkey if the until is below 8
+                LUTkey >>= 8 - until;
                 LUT[column, LUTkey] = weight;
                 return;
             }
@@ -144,9 +146,16 @@ public class WaveFunctionEncoder {
     }
 
     /**
+     * Get the full wave function
+     */
+    public uint[] GetFull() {
+        return this.GetPossibilitySpace();
+    }
+
+    /**
      * Get the possibility space with some waves
      */
-    public uint[] GetPossibilitySpace(Wave[] include) {
+    public uint[] GetPossibilitySpace(ICollection<Wave> include) {
         // Get a fresh copy
         uint[] r = new uint[this.encodeSize];
 
@@ -304,7 +313,6 @@ public class WaveFunctionEncoder {
      */
     public uint GetEntropy(uint[] waveFunction) {
         float sow = this.GetSumOfWeights(waveFunction);
-
 #if(DEBUG)
         // The given wave function has no possible states (all zero)
         if (sow == 0f)
@@ -340,7 +348,7 @@ public class WaveFunctionEncoder {
 
         float s = 0f;
         this.ForEachWave(waveFunction, (rank) => {
-            s+= this.weights[rank];
+            s += this.weights[rank];
         });
 
         // Select the wave

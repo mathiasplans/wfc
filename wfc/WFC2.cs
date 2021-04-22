@@ -54,12 +54,6 @@ public class WFC2 {
     public void Encode(bool fix) {
         // 2D grid has 4 directions: North, South, East, West
         this.core = new WaveFunction(this.waves.ToArray(), 4);
-        Wave[] cw = null;;
-        if (!fix) {
-            cw = this.core.GetSymmetryFaults();
-            if (cw != null)
-                throw new Exception($"Given waves' adjacency rules are not symmetrical: {cw[0].name} and {cw[1].name}");
-        }
     }
 
     /**
